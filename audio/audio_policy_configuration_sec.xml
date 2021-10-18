@@ -143,7 +143,6 @@
         </module>
 
         <xi:include href="a2dp_audio_policy_configuration.xml"/>
-        <xi:include href="playback_record_audio_policy_configuration.xml"/>
         <xi:include href="r_submix_audio_policy_configuration.xml"/>
         <xi:include href="usb_audio_policy_configuration.xml"/>
     </modules>

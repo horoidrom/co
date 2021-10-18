@@ -1473,12 +1473,6 @@
         <path name="speaker-mic" />
     </path>
 
-    <!-- huaqin add P200114-05814 for CTS AEC by limengxia at 2020/01/21 start -->
-    <path name="voice-speaker-mic-aec-off">
-        <path name="speaker-mic" />
-    </path>
-    <!-- huaqin add P200114-05814 for CTS AEC by limengxia at 2020/01/21 end -->
-
     <path name="voice-headphones">
         <path name="headphones" />
     </path>

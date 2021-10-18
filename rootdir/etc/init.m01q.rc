@@ -27,17 +27,18 @@
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 #
-
 on boot
 # SSWAP
     write /proc/sys/vm/swappiness 130
 
 # SSWAP
-service swapon /system/bin/sswap -s -z -f 1536
+service swapon /sbin/sswap -s -z -f 1536
     class core
-    user system
-    group system
-    capabilities SYS_ADMIN
+    user root
+    group root
     seclabel u:r:sswap:s0
     oneshot
 
+# tracking activation VNG
+on property:ro.csc.sales_code=XEV
+   tracking_activation_VNG

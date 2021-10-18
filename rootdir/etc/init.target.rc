@@ -1,4 +1,4 @@
-# Copyright (c) 2013-2014, 2018,2020 The Linux Foundation. All rights reserved.
+# Copyright (c) 2013-2014, 2018, The Linux Foundation. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -27,7 +27,6 @@
 #
 #
 
-import init.carrier.rc
 import /vendor/etc/init/hw/init.samsung.rc
 import /vendor/etc/init/hw/init.${ro.product.vendor.device}.rc
 import /vendor/etc/init/hw/init.${ro.product.vendor.name}.rc
@@ -43,6 +42,8 @@ on early-init
 on fs
     wait /dev/block/platform/soc/${ro.boot.bootdevice}
     symlink /dev/block/platform/soc/${ro.boot.bootdevice} /dev/block/bootdevice
+    write /proc/sys/vm/swappiness 100
+
 # HS60 code added for enable dynamic partition by tangqingyong at 20191011 start
     mount_all /vendor/etc/fstab.qcom --early
 # HS60 code added for enable dynamic partition by tangqingyong at 20191011 end
@@ -52,10 +53,11 @@ on fs
     mkdir /mnt/vendor/persist/bms 0700 root system
     restorecon_recursive /mnt/vendor/persist
 
+
     write /proc/sys/vm/swappiness 100
     #write /sys/kernel/boot_adsp/boot 1
-    wait /dev/block/bootdevice/by-name/oem
-    mount ext4 /dev/block/bootdevice/by-name/oem /oem ro nosuid nodev barrier=1
+#    wait /dev/block/bootdevice/by-name/oem
+#    mount ext4 /dev/block/bootdevice/by-name/oem /oem ro nosuid nodev barrier=1
 
 on post-fs
     # set RLIMIT_MEMLOCK to 64MB
@@ -81,19 +83,6 @@ on late-fs
     mount_all /vendor/etc/fstab.qcom --late
 # HS60 code added for enable dynamic partition by tangqingyong at 20191011 end
 
-on early-boot
-    chown system system /mnt/vendor/persist/sensors
-    chown system system /mnt/vendor/persist/sensors/sns.reg
-    chown system system /mnt/vendor/persist/sensors/sensors_list.txt
-    chown system system /mnt/vendor/persist/sensors/registry
-    chown system system /mnt/vendor/persist/sensors/registry/registry
-    chown system system /mnt/vendor/persist/sensors/registry/registry/sensors_registry
-    chown system system /mnt/vendor/persist/sensors/sensors_settings
-    chown system system /mnt/vendor/persist/sensors/registry/sns_reg_config
-    chown system system /mnt/vendor/persist/sensors/registry/sns_reg_version
-    chown system system /mnt/vendor/persist/sensors/registry/config
-    chmod 0664 /mnt/vendor/persist/sensors/sensors_settings
-
 #Create folder for mm-qcamera-daemon
     mkdir /data/vendor/camera 0770 camera camera
 
@@ -106,6 +95,9 @@ service qcamerasvr /system/vendor/bin/mm-qcamera-daemon
 on init
    write /dev/stune/top-app/schedtune.colocate 1
    write /sys/module/qpnp_rtc/parameters/poweron_alarm 1
+
+on init
+    mount none /system/lib/modules/pronto_wlan.ko /vendor/lib/modules/pronto_wlan.ko bind
 
 service qfp-daemon /system/vendor/bin/qfp-daemon
    class late_start
@@ -198,6 +190,16 @@ on boot
     chown system system /persist/speccfg/vendor_persist.prop
     chown system system /persist/speccfg/submask
     chown system system /persist/speccfg/partition
+    #HS60 code for SR-ZQL1695-01000000493 by zhanghao6 at 20190714 start
+    chown system system /sys/module/rfcable_detect/parameters/swtp_state
+    #HS60 code for SR-ZQL1695-01000000493 by zhanghao6 at 20190714 end
+    #HS60 code for SR-ZQL1695-01-37/AR-ZQL1695-01000000041 by zhuqiang at 2019/7/25 start
+    chown system system /sys/devices/platform/soc/7af5000.i2c/i2c-5/5-0028/enable
+    chown system system /sys/devices/platform/soc/7af5000.i2c/i2c-5/5-0028/register_write
+    chown system system /sys/devices/platform/soc/7af5000.i2c/i2c-5/5-002c/enable
+    chown system system /sys/devices/platform/soc/7af5000.i2c/i2c-5/5-002c/register_write
+    chown system system /sys/module/sensors_ssc/parameters/sar_name
+    #HS60 code for SR-ZQL1695-01-37/AR-ZQL1695-01000000041 by zhuqiang at 2019/7/25 end
 
 # access permission for wlan
     chown system system /mnt/vendor/persist/WCNSS_qcom_wlan_nv.bin
@@ -208,11 +210,6 @@ on boot
     setprop vendor.usb.rmnet.inst.name "rmnet_bam_dmux"
     setprop vendor.usb.dpl.inst.name "dpl_bam_dmux"
     setprop vendor.usb.qdss.inst.name "qdss"
-
-service vendor-sensor-sh /vendor/bin/init.qcom.sensors.sh
-    class core
-    user root
-    oneshot
 
 service ppd /system/vendor/bin/mm-pp-dpps
     class late_start
@@ -246,13 +243,54 @@ service wcnss-service /system/vendor/bin/wcnss_service
     oneshot
 
 on charger
-    wait /dev/block/bootdevice/by-name/system
-    mount ext4 /dev/block/bootdevice/by-name/system /system ro barrier=1
+    load_system_props
     setprop sys.usb.configfs 1
     start qcom-post-boot
     setprop persist.sys.usb.config mass_storage
     start vendor.hvdcp_opti
     start vendor.vm_bms
+
+service imsstarter /vendor/bin/init.qti.ims.sh
+    class main
+    oneshot
+
+on property:vold.decrypt=trigger_restart_framework
+    start imsstarter
+
+## imsqmidaemon starts with root and UID will be downgraded to SYSTEM.
+service vendor.imsqmidaemon /system/vendor/bin/imsqmidaemon
+    class main
+    user system
+    socket ims_qmid stream 0660 system radio
+    group radio log diag
+    disabled
+
+on property:vendor.service.qti.ims.enabled=1
+    start vendor.imsqmidaemon
+
+# imsdatadaemon starts with root and UID will be downgraded to SYSTEM.
+service vendor.imsdatadaemon /system/vendor/bin/imsdatadaemon
+    class main
+    user system
+    socket ims_datad stream 0660 system radio
+    group system wifi radio inet log diag
+    disabled
+
+on property:vendor.ims.QMI_DAEMON_STATUS=1
+    start vendor.imsdatadaemon
+
+service vendor.ims_rtp_daemon /system/vendor/bin/ims_rtp_daemon
+   class main
+   user system
+   group radio diag inet log
+
+service vendor.imsrcsservice /system/vendor/bin/imsrcsd
+   class main
+   user system
+   group radio diag inet log wakelock
+
+on property:vendor.ims.DATA_DAEMON_STATUS=1
+    restart vendor.ims_rtp_daemon
 
 service hbtp /system/vendor/bin/hbtp_daemon
     class main
@@ -272,10 +310,10 @@ service dtseagleservice /system/vendor/bin/dts_eagle_service
     group audio media
     disabled
 
-#service adsprpcd /system/vendor/bin/adsprpcd
-#    class main
-#    user media
-#    group media
+service adsprpcd /system/vendor/bin/adsprpcd
+    class main
+    user media
+    group media
 
 on property:init.svc.dts_configurator=stopped
     start dtseagleservice
@@ -311,12 +349,6 @@ service mdtpd /system/vendor/bin/mdtpd
     class late_start
     user root
     group system radio drmrpc
-
-service vendor.sensors.qti /vendor/bin/sensors.qti
-    class core
-    user system
-    group system
-    disabled
 
 on boot
     write /sys/devices/soc.0/78b8000.i2c/i2c-4/4-0020/input/input0/fw_name PR1702898-s3528t_00260005_00380008.img
